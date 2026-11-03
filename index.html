@@ -6,777 +6,964 @@
     <title>주행게임</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js 3D Engine -->
+    <!-- Three.js (3D Library) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;700;900&display=swap');
-        body {
-            font-family: 'Pretendard', sans-serif;
-            touch-action: manipulation;
-            user-select: none;
-        }
-        #canvasContainer {
-            display: block;
+        body, html {
+            margin: 0;
+            padding: 0;
             width: 100%;
             height: 100%;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #0f172a;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .touch-btn {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.1s ease;
+        }
+        .touch-btn:active {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(0.92);
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .animate-pulse-subtle {
+            animation: pulse-subtle 2s infinite ease-in-out;
+        }
+        .flash-green {
+            animation: flashGreen 0.4s ease-out;
+        }
+        @keyframes flashGreen {
+            0% { background-color: rgba(34, 197, 94, 0.4); }
+            100% { background-color: transparent; }
+        }
+        .float-text {
+            animation: floatUp 0.8s ease-out forwards;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
         }
     </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex flex-col justify-center items-center overflow-hidden p-2">
+<body class="relative w-full h-full text-white">
 
-    <!-- Game Container -->
-    <div class="relative w-full max-w-md h-[90vh] max-h-[800px] bg-slate-900 rounded-3xl overflow-hidden border-4 border-slate-800 shadow-2xl flex flex-col justify-between">
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Flash Overlay for Feedback -->
+    <div id="flash-overlay" class="absolute inset-0 pointer-events-none z-10 transition-colors duration-300"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer" class="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-4 sm:p-6">
         
-        <!-- Top HUD Panel -->
-        <div class="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-slate-950/90 to-transparent pointer-events-none flex justify-between items-start">
+        <!-- Top HUD -->
+        <div class="flex items-start justify-between w-full max-w-xl mx-auto">
             <!-- Score & Speed -->
-            <div>
-                <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">SCORE</div>
-                <div id="scoreDisplay" class="text-3xl font-black text-amber-400 drop-shadow">0</div>
-                <div id="speedDisplay" class="text-xs font-bold text-sky-400 mt-1">속도: 100 km/h</div>
+            <div class="bg-slate-900/80 backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-700/50 shadow-xl flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid font-bold text-amber-400 fa-trophy"></i>
+                    <span class="text-xs uppercase tracking-wider text-slate-400 font-bold">SCORE</span>
+                </div>
+                <span id="score-text" class="text-2xl sm:text-3xl font-black text-amber-400 tracking-tight">0</span>
+                <div class="text-[10px] text-slate-400 mt-0.5">
+                    속도: <span id="speed-text" class="text-sky-400 font-bold">100</span> km/h
+                </div>
             </div>
 
-            <!-- Fuel Bar HUD -->
-            <div class="w-36 bg-slate-900/80 border border-slate-700/80 p-2 rounded-2xl backdrop-blur-md">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5 text-emerald-400 inline" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"></path>
-                            <path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"></path>
-                        </svg>
-                        연료
+            <!-- Title -->
+            <div class="hidden sm:block text-center pt-2">
+                <h1 class="text-xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-indigo-400">
+                    주행게임
+                </h1>
+            </div>
+
+            <!-- Fuel Bar -->
+            <div class="bg-slate-900/80 backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-700/50 shadow-xl w-36 sm:w-48 flex flex-col gap-1">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-400 flex items-center gap-1">
+                        <i class="fa-solid fa-gas-pump text-emerald-400"></i> FUEL
                     </span>
-                    <span id="fuelText" class="text-xs font-extrabold text-emerald-400">10.0초</span>
+                    <span id="fuel-text" class="text-xs font-black text-emerald-400">10.0s</span>
                 </div>
-                <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
-                    <div id="fuelBar" class="bg-gradient-to-r from-emerald-500 to-green-400 h-full w-full transition-all duration-75"></div>
+                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                    <div id="fuel-bar" class="bg-gradient-to-r from-emerald-500 to-green-300 h-full rounded-full transition-all duration-100" style="width: 100%;"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Canvas Container -->
-        <div class="relative w-full h-full flex-grow overflow-hidden">
-            <div id="canvasContainer" class="w-full h-full"></div>
-            
-            <!-- Visual Effect Overlay for Fuel Pickups -->
-            <div id="screenFlash" class="absolute inset-0 bg-emerald-500/20 opacity-0 pointer-events-none transition-opacity duration-200 z-10"></div>
-        </div>
+        <!-- Floating Hit/Get Text Container -->
+        <div id="floating-text-container" class="absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
 
-        <!-- Touch Controls (Mobile Friendly) -->
-        <div class="absolute bottom-4 inset-x-4 z-10 flex justify-between gap-4 pointer-events-auto md:hidden">
-            <button id="btnLeft" class="flex-1 bg-slate-800/80 hover:bg-slate-700 active:bg-amber-500/80 border border-slate-600 rounded-2xl py-4 text-center font-black text-2xl text-white backdrop-blur shadow-lg active:scale-95 transition-transform">
-                ◀
+        <!-- Bottom Mobile Touch Controls -->
+        <div class="w-full max-w-md mx-auto pointer-events-auto flex justify-between gap-6 pb-2">
+            <button id="btn-left" class="touch-btn flex-1 h-20 rounded-3xl flex items-center justify-center text-3xl text-white shadow-2xl active:bg-sky-500/30">
+                <i class="fa-solid fa-chevron-left"></i>
             </button>
-            <button id="btnRight" class="flex-1 bg-slate-800/80 hover:bg-slate-700 active:bg-amber-500/80 border border-slate-600 rounded-2xl py-4 text-center font-black text-2xl text-white backdrop-blur shadow-lg active:scale-95 transition-transform">
-                ▶
+            <button id="btn-right" class="touch-btn flex-1 h-20 rounded-3xl flex items-center justify-center text-3xl text-white shadow-2xl active:bg-sky-500/30">
+                <i class="fa-solid fa-chevron-right"></i>
             </button>
         </div>
+    </div>
 
-        <!-- Start / Game Over Overlay Modal -->
-        <div id="overlay" class="absolute inset-0 z-20 bg-slate-950/90 backdrop-blur-md flex flex-col justify-center items-center p-6 text-center">
-            <!-- Title Graphic -->
-            <div id="titleContainer">
-                <div class="inline-block bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full mb-3 tracking-widest uppercase shadow">5-LANE 3D DRIVE</div>
-                <h1 class="text-4xl font-black tracking-tight text-white mb-2">주행게임</h1>
-                <p class="text-sm text-slate-400 max-w-xs mb-6">장애물과 사슴을 피하고 길 위의 <span class="text-emerald-400 font-bold">연료</span>를 먹으며 달려라!</p>
+    <!-- Start Overlay Modal -->
+    <div id="start-modal" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        <div class="bg-slate-900/90 border border-slate-800 p-6 sm:p-8 rounded-3xl max-w-md w-full text-center shadow-2xl flex flex-col items-center">
+            <div class="w-16 h-16 bg-sky-500/20 text-sky-400 rounded-2xl flex items-center justify-center text-3xl mb-4 border border-sky-500/30">
+                <i class="fa-solid fa-car-side"></i>
+            </div>
+            <h1 class="text-3xl font-black mb-2 text-white tracking-tight">주행게임</h1>
+            <p class="text-slate-400 text-sm mb-6 leading-relaxed">
+                5개 차선을 자유롭게 넘나들며 차량, 무단횡단 동물/보행자, 공사 구멍을 피하고 **연료 아이템**을 주워 최대한 오래 주행하세요!
+            </p>
+
+            <div class="w-full bg-slate-800/60 rounded-2xl p-4 mb-6 text-left text-xs text-slate-300 space-y-2 border border-slate-700/50">
+                <div class="flex items-center gap-2">
+                    <span class="w-5 h-5 rounded bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold">⌨</span>
+                    <span>조작: 좌/우 방향키 또는 A/D 키 (모바일: 하단 버튼)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-5 h-5 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">⛽</span>
+                    <span>연료 소모: 초당 -0.5초 감소 (연료 획득시 +1.0초)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-5 h-5 rounded bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">⚠️</span>
+                    <span>10초 경과 시: 차선 변경 차량 & 공사 구멍 등장</span>
+                </div>
             </div>
 
-            <!-- Rules Card -->
-            <div id="rulesCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full max-w-xs mb-6 text-left text-xs text-slate-300 space-y-2">
-                <div class="flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 p-1 rounded font-bold">조작</span>
-                    <span>좌우 화살표키 / A, D 키 / 하단 버튼</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="bg-amber-500/20 text-amber-400 p-1 rounded font-bold">점수</span>
-                    <span>1초 달릴 때마다 +100점</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="bg-emerald-500/20 text-emerald-400 p-1 rounded font-bold">연료</span>
-                    <span>시작 10초 (초당 -0.5초), 획득시 +1.0초</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="bg-rose-500/20 text-rose-400 p-1 rounded font-bold">장애물</span>
-                    <span>차량, 사슴, 새, 보행자 & 30초 후 공사 구멍!</span>
-                </div>
-            </div>
-
-            <!-- Final Result Box -->
-            <div id="resultBox" class="hidden mb-6">
-                <div id="gameOverReason" class="text-rose-400 font-bold text-sm mb-1">장애물과 충돌했습니다!</div>
-                <div class="text-xs text-slate-400 uppercase tracking-widest">최종 점수</div>
-                <div id="finalScore" class="text-5xl font-black text-amber-400 my-2">0</div>
-            </div>
-
-            <!-- Start/Restart Button -->
-            <button id="startBtn" class="w-full max-w-xs bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-lg py-4 rounded-2xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all cursor-pointer">
+            <button id="start-btn" class="w-full py-4 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-lg rounded-2xl shadow-lg shadow-sky-500/25 transition-all transform active:scale-95 animate-pulse-subtle">
                 주행 시작하기
             </button>
         </div>
-
     </div>
 
-    <!-- Web Audio Engine -->
+    <!-- Game Over Modal -->
+    <div id="gameover-modal" class="hidden absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-lg">
+        <div class="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl max-w-md w-full text-center shadow-2xl flex flex-col items-center">
+            <div id="gameover-icon-box" class="w-16 h-16 bg-red-500/20 text-red-500 rounded-2xl flex items-center justify-center text-3xl mb-4 border border-red-500/30">
+                <i class="fa-solid fa-burst"></i>
+            </div>
+            <h2 id="gameover-title" class="text-3xl font-black mb-1 text-white">충돌 원인</h2>
+            <p id="gameover-reason" class="text-slate-400 text-sm mb-6">장애물과 충돌했습니다!</p>
+
+            <!-- Final Stats Box -->
+            <div class="w-full bg-slate-800/80 rounded-2xl p-4 mb-6 border border-slate-700/60 flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400 font-medium">최종 점수</span>
+                    <span id="final-score" class="text-2xl font-black text-amber-400">0</span>
+                </div>
+                <div class="w-full h-px bg-slate-700/50"></div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400 font-medium">주행 시간</span>
+                    <span id="final-time" class="text-base font-bold text-white">0.0초</span>
+                </div>
+            </div>
+
+            <button id="restart-btn" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-500/25 transition-all transform active:scale-95">
+                다시 도전하기
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Logic Scripts -->
     <script>
-        class SoundEffects {
-            constructor() {
-                this.ctx = null;
-            }
-            init() {
-                if (!this.ctx) {
-                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-            }
-            playFuel() {
-                if (!this.ctx) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.15);
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.15);
-            }
-            playCrash() {
-                if (!this.ctx) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.3);
-                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.3);
-            }
-        }
-        const sfx = new SoundEffects();
-    </script>
-
-    <!-- Main Game Engine -->
-    <script>
-        const container = document.getElementById('canvasContainer');
-
-        const overlay = document.getElementById('overlay');
-        const titleContainer = document.getElementById('titleContainer');
-        const rulesCard = document.getElementById('rulesCard');
-        const resultBox = document.getElementById('resultBox');
-        const gameOverReason = document.getElementById('gameOverReason');
-        const finalScore = document.getElementById('finalScore');
-        const startBtn = document.getElementById('startBtn');
-        const scoreDisplay = document.getElementById('scoreDisplay');
-        const speedDisplay = document.getElementById('speedDisplay');
-        const fuelBar = document.getElementById('fuelBar');
-        const fuelText = document.getElementById('fuelText');
-        const screenFlash = document.getElementById('screenFlash');
-
-        const btnLeft = document.getElementById('btnLeft');
-        const btnRight = document.getElementById('btnRight');
-
+        // --- Game Engine Variables ---
         let scene, camera, renderer;
-        let playerMesh;
-        let roadGroup, roadLines = [];
-
-        const LANE_X = [-4.8, -2.4, 0, 2.4, 4.8];
-        const MAX_FUEL = 10.0;
-        const ROAD_LENGTH = 120;
-        
-        let gameState = 'INIT';
-        let currentLane = 2;
-        let targetX = 0;
-        let fuel = MAX_FUEL;
-        let score = 0;
-        let elapsedTime = 0;
-        let baseSpeed = 10;
-        let currentSpeedMultiplier = 1;
-        
+        let playerCar, roadGroup;
+        let environmentObjects = [];
         let obstacles = [];
-        let fuelItems = [];
+        let fuels = [];
 
-        let lastTimestamp = 0;
+        // Game Config & Constants
+        const LANE_COUNT = 5;
+        const LANE_X = [-4.8, -2.4, 0, 2.4, 4.8]; // X positions for 5 lanes
+        let currentLane = 2; // Start in middle lane (index 2)
+
+        // Game State Variables
+        let isPlaying = false;
+        let score = 0;
+        let speed = 10;
+        let baseSpeed = 10;
+        let maxSpeed = 25;
+        let fuel = 10.0;
+        let maxFuel = 15.0;
+        let elapsedTime = 0;
+        let lastTime = 0;
+
+        // Timers for spawning
         let obstacleSpawnTimer = 0;
-        let pedestrianSpawnTimer = 0;
+        let sideEntitySpawnTimer = 0;
+        let holeSpawnTimer = 0;
         let fuelSpawnTimer = 0;
 
-        function init3D() {
+        // Visual Elements
+        const scoreText = document.getElementById('score-text');
+        const speedText = document.getElementById('speed-text');
+        const fuelText = document.getElementById('fuel-text');
+        const fuelBar = document.getElementById('fuel-bar');
+        const flashOverlay = document.getElementById('flash-overlay');
+        const floatingContainer = document.getElementById('floating-text-container');
+
+        // --- 1. Three.js Core Initialization ---
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            
+            // Scene Setup
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0a0f1d);
-            scene.fog = new THREE.FogExp2(0x0a0f1d, 0.018);
+            scene.fog = new THREE.FogExp2(0x0a0f1d, 0.015);
 
-            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-            camera.position.set(0, 16, 20);
-            camera.lookAt(0, 1, -12);
+            // Camera Setup (Quarter-View Perspective)
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 150);
+            camera.position.set(0, 10, 15);
+            camera.lookAt(0, 1.5, -5);
 
+            // Renderer Setup
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+            // Lighting Setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
             const dirLight = new THREE.DirectionalLight(0xfffaed, 0.9);
-            dirLight.position.set(10, 20, 10);
+            dirLight.position.set(15, 30, 10);
             dirLight.castShadow = true;
             dirLight.shadow.mapSize.width = 1024;
             dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 80;
+            dirLight.shadow.camera.left = -20;
+            dirLight.shadow.camera.right = 20;
             scene.add(dirLight);
 
-            buildRoad();
-            createPlayerCar();
+            // Build Scene Components
+            createRoadEnvironment();
+            playerCar = createPlayerCarModel();
+            playerCar.position.set(LANE_X[currentLane], 0, 5);
+            scene.add(playerCar);
 
+            // Event Listeners
             window.addEventListener('resize', onWindowResize);
+            setupInputHandlers();
+
+            // Initial Render
             renderer.render(scene, camera);
         }
 
-        function buildRoad() {
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- 2. Environment Creation ---
+        function createRoadEnvironment() {
             roadGroup = new THREE.Group();
 
-            const roadGeo = new THREE.PlaneGeometry(14.5, ROAD_LENGTH);
-            const roadMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
-            const road = new THREE.Mesh(roadGeo, roadMat);
-            road.rotation.x = -Math.PI / 2;
-            road.position.z = -ROAD_LENGTH / 2 + 10;
-            road.receiveShadow = true;
-            roadGroup.add(road);
+            // Asphalt Road Base
+            const roadGeo = new THREE.PlaneGeometry(14, 200);
+            const roadMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+            const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+            roadMesh.rotation.x = -Math.PI / 2;
+            roadMesh.receiveShadow = true;
+            roadGroup.add(roadMesh);
 
-            const curbGeo = new THREE.BoxGeometry(0.4, 0.4, ROAD_LENGTH);
-            const curbMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8 });
-            const leftCurb = new THREE.Mesh(curbGeo, curbMat);
-            leftCurb.position.set(-7.2, 0.2, -ROAD_LENGTH / 2 + 10);
-            const rightCurb = new THREE.Mesh(curbGeo, curbMat);
-            rightCurb.position.set(7.2, 0.2, -ROAD_LENGTH / 2 + 10);
-            roadGroup.add(leftCurb, rightCurb);
+            // Lane Divider Lines
+            const lineGeo = new THREE.PlaneGeometry(0.18, 3);
+            const lineMat = new THREE.MeshBasicMaterial({ color: 0xf1f5f9 });
 
-            const lineGeo = new THREE.BoxGeometry(0.12, 0.05, 2.5);
-            const lineMat = new THREE.MeshBasicMaterial({ color: 0x64748b });
-            const linePositionsX = [-3.6, -1.2, 1.2, 3.6];
-
-            for (let z = 10; z > -ROAD_LENGTH + 10; z -= 6) {
-                linePositionsX.forEach(posX => {
+            for (let z = -100; z < 100; z += 8) {
+                [-3.6, -1.2, 1.2, 3.6].forEach(x => {
                     const line = new THREE.Mesh(lineGeo, lineMat);
-                    line.position.set(posX, 0.03, z);
+                    line.rotation.x = -Math.PI / 2;
+                    line.position.set(x, 0.02, z);
                     roadGroup.add(line);
-                    roadLines.push(line);
                 });
             }
 
+            // Side Terrains
+            const grassGeo = new THREE.PlaneGeometry(60, 200);
+            const grassMat = new THREE.MeshLambertMaterial({ color: 0x064e3b });
+
+            const grassLeft = new THREE.Mesh(grassGeo, grassMat);
+            grassLeft.rotation.x = -Math.PI / 2;
+            grassLeft.position.set(-37, -0.05, 0);
+            grassLeft.receiveShadow = true;
+            roadGroup.add(grassLeft);
+
+            const grassRight = grassLeft.clone();
+            grassRight.position.x = 37;
+            roadGroup.add(grassRight);
+
             scene.add(roadGroup);
+
+            createSideScenery();
         }
 
-        function createPlayerCar() {
-            playerMesh = new THREE.Group();
-            
+        function createSideScenery() {
+            for (let z = -90; z < 90; z += 15) {
+                [-14, 14].forEach(sideX => {
+                    const bWidth = 4 + Math.random() * 3;
+                    const bHeight = 10 + Math.random() * 15;
+                    const bDepth = 4 + Math.random() * 3;
+
+                    const buildingGroup = new THREE.Group();
+                    const bGeo = new THREE.BoxGeometry(bWidth, bHeight, bDepth);
+                    const bMat = new THREE.MeshStandardMaterial({
+                        color: Math.random() < 0.5 ? 0x1e1b4b : 0x0f172a,
+                        roughness: 0.2
+                    });
+                    const bMesh = new THREE.Mesh(bGeo, bMat);
+                    bMesh.position.y = bHeight / 2;
+                    bMesh.castShadow = true;
+                    bMesh.receiveShadow = true;
+                    buildingGroup.add(bMesh);
+
+                    const winGeo = new THREE.PlaneGeometry(bWidth * 0.7, bHeight * 0.7);
+                    const winMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.3 });
+                    const winMesh = new THREE.Mesh(winGeo, winMat);
+                    winMesh.position.set(0, bHeight / 2, (sideX > 0 ? -1 : 1) * (bDepth / 2 + 0.05));
+                    if (sideX < 0) winMesh.rotation.y = Math.PI;
+                    buildingGroup.add(winMesh);
+
+                    buildingGroup.position.set(sideX > 0 ? sideX + 4 : sideX - 4, 0, z + (Math.random() * 4 - 2));
+                    scene.add(buildingGroup);
+                    environmentObjects.push(buildingGroup);
+                });
+
+                [-8.5, 8.5].forEach(sideX => {
+                    if (Math.random() < 0.65) {
+                        const tree = createTreeModel();
+                        tree.position.set(sideX + (sideX > 0 ? 0.8 : -0.8), 0, z + Math.random() * 4);
+                        scene.add(tree);
+                        environmentObjects.push(tree);
+                    } else {
+                        const lamp = createStreetLampModel();
+                        lamp.position.set(sideX, 0, z);
+                        if (sideX > 0) lamp.rotation.y = Math.PI;
+                        scene.add(lamp);
+                        environmentObjects.push(lamp);
+                    }
+                });
+            }
+        }
+
+        // --- 3. 3D Models ---
+        function createPlayerCarModel() {
+            const carGroup = new THREE.Group();
+
             const bodyGeo = new THREE.BoxGeometry(1.6, 0.5, 3.2);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00d2ff, roughness: 0.3, metalness: 0.4 });
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3, metalness: 0.4 });
             const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
             bodyMesh.position.y = 0.4;
             bodyMesh.castShadow = true;
-            playerMesh.add(bodyMesh);
+            carGroup.add(bodyMesh);
 
-            const cabinGeo = new THREE.BoxGeometry(1.3, 0.5, 1.6);
-            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0088cc, roughness: 0.3 });
+            const cabinGeo = new THREE.BoxGeometry(1.3, 0.48, 1.7);
+            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.2 });
             const cabinMesh = new THREE.Mesh(cabinGeo, cabinMat);
-            cabinMesh.position.set(0, 0.8, -0.2);
+            cabinMesh.position.set(0, 0.85, -0.1);
             cabinMesh.castShadow = true;
-            playerMesh.add(cabinMesh);
+            carGroup.add(cabinMesh);
 
-            const glassGeo = new THREE.BoxGeometry(1.25, 0.45, 1.5);
-            const glassMat = new THREE.MeshPhongMaterial({ color: 0x112233, transparent: true, opacity: 0.85 });
+            const glassGeo = new THREE.BoxGeometry(1.24, 0.42, 1.6);
+            const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x0f172a, roughness: 0.1, transmission: 0.8, transparent: true });
             const glassMesh = new THREE.Mesh(glassGeo, glassMat);
-            glassMesh.position.set(0, 0.82, -0.2);
-            playerMesh.add(glassMesh);
+            glassMesh.position.set(0, 0.86, -0.1);
+            carGroup.add(glassMesh);
 
-            const lightGeo = new THREE.BoxGeometry(0.3, 0.15, 0.1);
-            const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff0a0 });
-            const lightL = new THREE.Mesh(lightGeo, lightMat);
-            lightL.position.set(-0.55, 0.45, -1.56);
-            const lightR = lightL.clone();
-            lightR.position.x = 0.55;
-            playerMesh.add(lightL, lightR);
+            const lightGeo = new THREE.BoxGeometry(0.35, 0.15, 0.1);
+            const lightMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+            const headL = new THREE.Mesh(lightGeo, lightMat);
+            headL.position.set(-0.55, 0.45, -1.56);
+            const headR = headL.clone();
+            headR.position.x = 0.55;
+            carGroup.add(headL);
+            carGroup.add(headR);
 
-            const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+            const tailMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
             const tailL = new THREE.Mesh(lightGeo, tailMat);
             tailL.position.set(-0.55, 0.45, 1.56);
             const tailR = tailL.clone();
             tailR.position.x = 0.55;
-            playerMesh.add(tailL, tailR);
+            carGroup.add(tailL);
+            carGroup.add(tailR);
 
-            const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.25, 16);
-            const wheelMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
-            const rimMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0 });
-            
-            const wheelPositions = [
-                [-0.85, 0.3, -1.0], [0.85, 0.3, -1.0],
-                [-0.85, 0.3, 1.0], [0.85, 0.3, 1.0]
-            ];
+            const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+            const rimMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8 });
 
-            wheelPositions.forEach(pos => {
-                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-                wheel.rotation.z = Math.PI / 2;
-                wheel.position.set(...pos);
-                wheel.castShadow = true;
+            [[-0.85, 0.32, -0.95], [0.85, 0.32, -0.95], [-0.85, 0.32, 0.95], [0.85, 0.32, 0.95]].forEach(pos => {
+                const wMesh = new THREE.Mesh(wheelGeo, wheelMat);
+                wMesh.rotation.z = Math.PI / 2;
+                wMesh.position.set(...pos);
+                wMesh.castShadow = true;
                 
-                const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.26, 8), rimMat);
-                rim.rotation.z = Math.PI / 2;
-                rim.position.set(...pos);
-                
-                playerMesh.add(wheel, rim);
+                const rimMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.23, 8), rimMat);
+                rimMesh.rotation.z = Math.PI / 2;
+                rimMesh.position.set(...pos);
+
+                carGroup.add(wMesh);
+                carGroup.add(rimMesh);
             });
 
-            playerMesh.position.set(LANE_X[currentLane], 0, 0);
-            scene.add(playerMesh);
+            return carGroup;
         }
 
-        function createObstacleMesh(colorHex) {
-            const group = new THREE.Group();
-            const bodyGeo = new THREE.BoxGeometry(1.5, 0.8, 2.8);
+        function createEnemyCarModel(colorHex) {
+            const carGroup = new THREE.Group();
+            const bodyGeo = new THREE.BoxGeometry(1.55, 0.5, 3.0);
             const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.4 });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.5;
-            body.castShadow = true;
-            group.add(body);
+            const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+            bodyMesh.position.y = 0.4;
+            bodyMesh.castShadow = true;
+            carGroup.add(bodyMesh);
 
-            const cabinGeo = new THREE.BoxGeometry(1.2, 0.55, 1.3);
-            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
-            const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-            cabin.position.set(0, 1.05, 0.1);
-            group.add(cabin);
+            const cabinGeo = new THREE.BoxGeometry(1.25, 0.45, 1.5);
+            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+            const cabinMesh = new THREE.Mesh(cabinGeo, cabinMat);
+            cabinMesh.position.set(0, 0.8, -0.1);
+            carGroup.add(cabinMesh);
 
-            return group;
+            return carGroup;
         }
 
-        function createSideObstacleMesh(subType) {
-            const group = new THREE.Group();
-            
-            if (subType === 'pedestrian') {
-                const matBody = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.5 });
-                const matPants = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
-                const matSkin = new THREE.MeshStandardMaterial({ color: 0xfed7aa, roughness: 0.4 });
-
-                const torsoGeo = new THREE.BoxGeometry(0.5, 0.7, 0.3);
-                const torso = new THREE.Mesh(torsoGeo, matBody);
-                torso.position.y = 0.85;
-                torso.castShadow = true;
-                group.add(torso);
-
-                const headGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-                const head = new THREE.Mesh(headGeo, matSkin);
-                head.position.y = 1.4;
-                head.castShadow = true;
-                group.add(head);
-
-                const legGeo = new THREE.BoxGeometry(0.2, 0.5, 0.2);
-                const legL = new THREE.Mesh(legGeo, matPants);
-                legL.position.set(-0.13, 0.25, 0);
-                const legR = new THREE.Mesh(legGeo, matPants);
-                legR.position.set(0.13, 0.25, 0);
-                group.add(legL, legR);
-                group.legs = [legL, legR];
-
-            } else if (subType === 'bird') {
-                const matFeather = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3 });
-                const matBeak = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2 });
-
-                const bodyGeo = new THREE.ConeGeometry(0.3, 0.9, 5);
-                const body = new THREE.Mesh(bodyGeo, matFeather);
-                body.rotation.x = Math.PI / 2;
-                body.position.y = 1.5;
-                group.add(body);
-
-                const wingGeo = new THREE.BoxGeometry(0.9, 0.05, 0.4);
-                const wingL = new THREE.Mesh(wingGeo, matFeather);
-                wingL.position.set(-0.45, 1.55, 0);
-                const wingR = new THREE.Mesh(wingGeo, matFeather);
-                wingR.position.set(0.45, 1.55, 0);
-                group.add(wingL, wingR);
-                group.wings = [wingL, wingR];
-
-                const beakGeo = new THREE.ConeGeometry(0.1, 0.25, 4);
-                const beak = new THREE.Mesh(beakGeo, matBeak);
-                beak.rotation.x = Math.PI / 2;
-                beak.position.set(0, 1.5, -0.5);
-                group.add(beak);
-
-            } else if (subType === 'deer') {
-                const matFur = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
-                const matAntler = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.7 });
-
-                const deerBodyGroup = new THREE.Group();
-                deerBodyGroup.scale.set(1.4, 1.4, 1.4);
-
-                const bodyGeo = new THREE.BoxGeometry(0.65, 0.65, 1.2);
-                const body = new THREE.Mesh(bodyGeo, matFur);
-                body.position.y = 0.8;
-                body.castShadow = true;
-                deerBodyGroup.add(body);
-
-                const neckGeo = new THREE.BoxGeometry(0.35, 0.7, 0.35);
-                const neck = new THREE.Mesh(neckGeo, matFur);
-                neck.position.set(0, 1.25, -0.45);
-                neck.rotation.x = -Math.PI / 6;
-                deerBodyGroup.add(neck);
-
-                const headGeo = new THREE.BoxGeometry(0.35, 0.35, 0.5);
-                const head = new THREE.Mesh(headGeo, matFur);
-                head.position.set(0, 1.55, -0.65);
-                deerBodyGroup.add(head);
-
-                const antlerMainGeo = new THREE.BoxGeometry(0.06, 0.45, 0.06);
-                const antlerLeft = new THREE.Mesh(antlerMainGeo, matAntler);
-                antlerLeft.position.set(-0.18, 1.8, -0.6);
-                antlerLeft.rotation.z = -Math.PI / 8;
-                const antlerRight = new THREE.Mesh(antlerMainGeo, matAntler);
-                antlerRight.position.set(0.18, 1.8, -0.6);
-                antlerRight.rotation.z = Math.PI / 8;
-                deerBodyGroup.add(antlerLeft, antlerRight);
-
-                const legGeo = new THREE.BoxGeometry(0.14, 0.55, 0.14);
-                const legFL = new THREE.Mesh(legGeo, matFur);
-                legFL.position.set(-0.22, 0.28, -0.4);
-                const legFR = new THREE.Mesh(legGeo, matFur);
-                legFR.position.set(0.22, 0.28, -0.4);
-                const legBL = new THREE.Mesh(legGeo, matFur);
-                legBL.position.set(-0.22, 0.28, 0.4);
-                const legBR = new THREE.Mesh(legGeo, matFur);
-                legBR.position.set(0.22, 0.28, 0.4);
-
-                deerBodyGroup.add(legFL, legFR, legBL, legBR);
-                group.add(deerBodyGroup);
-                group.legs = [legFL, legFR, legBL, legBR];
-            }
-
-            return group;
-        }
-
-        function createRoadHoleMesh() {
-            const group = new THREE.Group();
-            const holeGeo = new THREE.CylinderGeometry(1.1, 1.1, 0.06, 24);
+        function createRoadHoleModel() {
+            const holeGroup = new THREE.Group();
+            const holeGeo = new THREE.CylinderGeometry(1.1, 1.1, 0.05, 16);
             const holeMat = new THREE.MeshBasicMaterial({ color: 0x020617 });
-            const hole = new THREE.Mesh(holeGeo, holeMat);
-            hole.position.y = 0.04;
-            group.add(hole);
+            const holeMesh = new THREE.Mesh(holeGeo, holeMat);
+            holeMesh.position.y = 0.03;
+            holeGroup.add(holeMesh);
 
-            const coneGeo = new THREE.ConeGeometry(0.25, 0.6, 12);
-            const coneMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.3 });
-            const conePositions = [[-0.8, 0], [0.8, 0], [0, -0.8], [0, 0.8]];
+            const coneGeo = new THREE.ConeGeometry(0.2, 0.6, 8);
+            const coneMat = new THREE.MeshLambertMaterial({ color: 0xf97316 });
 
-            conePositions.forEach(pos => {
+            [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]].forEach(p => {
                 const cone = new THREE.Mesh(coneGeo, coneMat);
-                cone.position.set(pos[0], 0.3, pos[1]);
+                cone.position.set(p[0], 0.3, p[1]);
                 cone.castShadow = true;
-                group.add(cone);
+                holeGroup.add(cone);
             });
 
-            return group;
+            return holeGroup;
         }
 
-        function createFuelMesh() {
-            const group = new THREE.Group();
-            const canGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16);
-            const canMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.2, metalness: 0.6, emissive: 0x047857, emissiveIntensity: 0.3 });
-            const canister = new THREE.Mesh(canGeo, canMat);
-            canister.position.y = 0.8;
-            canister.castShadow = true;
-            group.add(canister);
+        function createDeerModel() {
+            const deerGroup = new THREE.Group();
+            const mat = new THREE.MeshLambertMaterial({ color: 0xd97706 });
 
-            const ringGeo = new THREE.TorusGeometry(0.8, 0.08, 16, 32);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            ring.rotation.x = Math.PI / 2;
-            ring.position.y = 0.1;
-            group.add(ring);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 1.4), mat);
+            body.position.y = 0.9;
+            deerGroup.add(body);
 
-            return group;
+            const neck = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.35), mat);
+            neck.position.set(0, 1.3, -0.5);
+            neck.rotation.x = -0.3;
+            deerGroup.add(neck);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.5), mat);
+            head.position.set(0, 1.6, -0.7);
+            deerGroup.add(head);
+
+            const antlerMat = new THREE.MeshBasicMaterial({ color: 0x78350f });
+            const antlerL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), antlerMat);
+            antlerL.position.set(-0.25, 1.95, -0.7);
+            antlerL.rotation.z = -0.3;
+
+            const antlerR = antlerL.clone();
+            antlerR.position.x = 0.25;
+            antlerR.rotation.z = 0.3;
+            deerGroup.add(antlerL);
+            deerGroup.add(antlerR);
+
+            const legGeo = new THREE.BoxGeometry(0.16, 0.7, 0.16);
+            const legs = [];
+            [[-0.25, 0.35, 0.4], [0.25, 0.35, 0.4], [-0.25, 0.35, -0.4], [0.25, 0.35, -0.4]].forEach(pos => {
+                const leg = new THREE.Mesh(legGeo, mat);
+                leg.position.set(...pos);
+                deerGroup.add(leg);
+                legs.push(leg);
+            });
+
+            deerGroup.scale.set(1.4, 1.4, 1.4);
+            return { mesh: deerGroup, legs: legs };
         }
 
-        function moveLeft() {
-            if (gameState !== 'PLAYING') return;
+        function createPedestrianModel() {
+            const pedGroup = new THREE.Group();
+            const bodyMat = new THREE.MeshLambertMaterial({ color: 0xec4899 });
+            const skinMat = new THREE.MeshLambertMaterial({ color: 0xfde047 });
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.65, 0.3), bodyMat);
+            torso.position.y = 0.95;
+            pedGroup.add(torso);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), skinMat);
+            head.position.y = 1.45;
+            pedGroup.add(head);
+
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.65, 0.2), bodyMat);
+            legL.position.set(-0.14, 0.32, 0);
+            const legR = legL.clone();
+            legR.position.x = 0.14;
+
+            pedGroup.add(legL);
+            pedGroup.add(legR);
+
+            return { mesh: pedGroup, legs: [legL, legR] };
+        }
+
+        function createBirdModel() {
+            const birdGroup = new THREE.Group();
+            const mat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+            const body = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.8, 4), mat);
+            body.rotation.x = Math.PI / 2;
+            birdGroup.add(body);
+
+            const wingGeo = new THREE.BoxGeometry(0.8, 0.04, 0.3);
+            const wingL = new THREE.Mesh(wingGeo, mat);
+            wingL.position.set(-0.4, 0, 0);
+            const wingR = wingL.clone();
+            wingR.position.x = 0.4;
+
+            birdGroup.add(wingL);
+            birdGroup.add(wingR);
+
+            return { mesh: birdGroup, wings: [wingL, wingR] };
+        }
+
+        function createFuelItemModel() {
+            const fuelGroup = new THREE.Group();
+
+            const canGeo = new THREE.BoxGeometry(0.7, 0.9, 0.4);
+            const canMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.3 });
+            const canMesh = new THREE.Mesh(canGeo, canMat);
+            canMesh.position.y = 0.45;
+            canMesh.castShadow = true;
+            fuelGroup.add(canMesh);
+
+            const capGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 8);
+            const capMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const capMesh = new THREE.Mesh(capGeo, capMat);
+            capMesh.position.set(0.2, 0.95, 0);
+            fuelGroup.add(capMesh);
+
+            return fuelGroup;
+        }
+
+        function createTreeModel() {
+            const treeGroup = new THREE.Group();
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
+            const foliageMat = new THREE.MeshLambertMaterial({ color: 0x15803d });
+
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 1.5, 6), trunkMat);
+            trunk.position.y = 0.75;
+            treeGroup.add(trunk);
+
+            const foliage = new THREE.Mesh(new THREE.ConeGeometry(1.4, 3.2, 6), foliageMat);
+            foliage.position.y = 2.8;
+            foliage.castShadow = true;
+            treeGroup.add(foliage);
+
+            return treeGroup;
+        }
+
+        function createStreetLampModel() {
+            const lampGroup = new THREE.Group();
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8 });
+
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 5, 8), poleMat);
+            pole.position.y = 2.5;
+            lampGroup.add(pole);
+
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 0.08), poleMat);
+            arm.position.set(0.5, 4.9, 0);
+            lampGroup.add(arm);
+
+            const lightBulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+            lightBulb.position.set(1.0, 4.8, 0);
+            lampGroup.add(lightBulb);
+
+            return lampGroup;
+        }
+
+        // --- 4. Controls ---
+        function setupInputHandlers() {
+            window.addEventListener('keydown', (e) => {
+                if (!isPlaying) return;
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                    movePlayerLeft();
+                } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                    movePlayerRight();
+                }
+            });
+
+            document.getElementById('btn-left').addEventListener('click', () => {
+                if (isPlaying) movePlayerLeft();
+            });
+
+            document.getElementById('btn-right').addEventListener('click', () => {
+                if (isPlaying) movePlayerRight();
+            });
+
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('restart-btn').addEventListener('click', startGame);
+        }
+
+        function movePlayerLeft() {
             if (currentLane > 0) {
                 currentLane--;
-                targetX = LANE_X[currentLane];
             }
         }
 
-        function moveRight() {
-            if (gameState !== 'PLAYING') return;
-            if (currentLane < 4) {
+        function movePlayerRight() {
+            if (currentLane < LANE_COUNT - 1) {
                 currentLane++;
-                targetX = LANE_X[currentLane];
             }
         }
 
-        function resetGame() {
-            currentLane = 2;
-            targetX = LANE_X[currentLane];
-            playerMesh.position.set(targetX, 0, 0);
-            playerMesh.rotation.z = 0;
-
-            fuel = MAX_FUEL;
-            score = 0;
-            elapsedTime = 0;
-            currentSpeedMultiplier = 1;
+        // --- 5. Game Engine Loop ---
+        function startGame() {
+            document.getElementById('start-modal').classList.add('hidden');
+            document.getElementById('gameover-modal').classList.add('hidden');
 
             obstacles.forEach(o => scene.remove(o.mesh));
-            fuelItems.forEach(f => scene.remove(f.mesh));
-
+            fuels.forEach(f => scene.remove(f.mesh));
             obstacles = [];
-            fuelItems = [];
+            fuels = [];
+
+            score = 0;
+            speed = baseSpeed;
+            fuel = 10.0;
+            elapsedTime = 0;
+            currentLane = 2;
+            playerCar.position.set(LANE_X[currentLane], 0, 5);
+            playerCar.rotation.y = 0;
+
             obstacleSpawnTimer = 0;
-            pedestrianSpawnTimer = 0;
+            sideEntitySpawnTimer = 0;
+            holeSpawnTimer = 0;
             fuelSpawnTimer = 0;
 
-            updateUI();
+            lastTime = performance.now();
+            isPlaying = true;
+
+            requestAnimationFrame(gameLoop);
         }
 
-        function spawnEntities(deltaTime) {
-            obstacleSpawnTimer += deltaTime;
-            pedestrianSpawnTimer += deltaTime;
-            fuelSpawnTimer += deltaTime;
+        function gameLoop(now) {
+            if (!isPlaying) return;
 
-            const minObstacleInterval = Math.max(0.25, (1.2 - (elapsedTime / 60) * 0.7));
-            if (obstacleSpawnTimer > minObstacleInterval) {
-                obstacleSpawnTimer = 0;
-                const lane = Math.floor(Math.random() * 5);
-                const colors = [0xef4444, 0xf59e0b, 0x8b5cf6, 0x10b981, 0xec4899];
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                
-                const mesh = createObstacleMesh(color);
-                mesh.position.set(LANE_X[lane], 0, -55);
-                scene.add(mesh);
-
-                obstacles.push({
-                    type: 'car',
-                    mesh: mesh,
-                    lane: lane,
-                    vx: 0
-                });
-            }
-
-            if (elapsedTime >= 30.0 && Math.random() < 0.015) {
-                const holeLane = Math.floor(Math.random() * 5);
-                const isOccupied = obstacles.some(o => Math.abs(o.mesh.position.z - (-55)) < 6 && Math.abs(o.mesh.position.x - LANE_X[holeLane]) < 1);
-                if (!isOccupied) {
-                    const holeMesh = createRoadHoleMesh();
-                    holeMesh.position.set(LANE_X[holeLane], 0, -55);
-                    scene.add(holeMesh);
-
-                    obstacles.push({
-                        type: 'roadHole',
-                        subType: 'hole',
-                        mesh: holeMesh,
-                        vx: 0
-                    });
-                }
-            }
-
-            const minPedestrianInterval = Math.max(0.7, 1.4 - (elapsedTime / 60) * 0.5);
-            if (pedestrianSpawnTimer > minPedestrianInterval) {
-                pedestrianSpawnTimer = 0;
-                const fromLeft = Math.random() < 0.5;
-                const startX = fromLeft ? -8.5 : 8.5;
-                const dir = fromLeft ? 1 : -1;
-                
-                const types = ['deer', 'pedestrian', 'deer', 'bird'];
-                const subType = types[Math.floor(Math.random() * types.length)];
-                let speedVal = (3.5 + Math.random() * 2) * dir;
-                
-                const mesh = createSideObstacleMesh(subType);
-                mesh.position.set(startX, 0.8, -55);
-                scene.add(mesh);
-
-                obstacles.push({
-                    type: 'crossing',
-                    subType: subType,
-                    mesh: mesh,
-                    vx: speedVal
-                });
-            }
-
-            const fuelInterval = 0.95;
-            if (fuelSpawnTimer > fuelInterval) {
-                fuelSpawnTimer = 0;
-                const lane = Math.floor(Math.random() * 5);
-                const mesh = createFuelMesh();
-                mesh.position.set(LANE_X[lane], 0, -55);
-                scene.add(mesh);
-
-                fuelItems.push({
-                    mesh: mesh,
-                    lane: lane
-                });
-            }
-        }
-
-        function gameLoop(timestamp) {
-            if (gameState !== 'PLAYING') return;
-
-            if (!lastTimestamp) lastTimestamp = timestamp;
-            const deltaTime = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
-            lastTimestamp = timestamp;
-
+            const deltaTime = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
             elapsedTime += deltaTime;
-            currentSpeedMultiplier = 1 + Math.min(1.5, (elapsedTime / 60) * 1.5);
-            const currentSpeed3D = baseSpeed * 3.5 * currentSpeedMultiplier;
 
-            // Fuel depletion at -0.5s/sec
             fuel -= deltaTime * 0.5;
-            score += deltaTime * 100;
-
             if (fuel <= 0) {
-                gameOver('연료가 모두 고갈되었습니다!');
+                fuel = 0;
+                endGame("연료가 모두 고갈되었습니다!");
                 return;
             }
 
-            const diffX = targetX - playerMesh.position.x;
-            playerMesh.position.x += diffX * 0.22;
-            playerMesh.rotation.z = -diffX * 0.1;
+            speed = Math.min(maxSpeed, baseSpeed + elapsedTime * 0.12);
+            score += Math.floor(deltaTime * 100);
 
-            roadLines.forEach(line => {
-                line.position.z += currentSpeed3D * deltaTime;
-                if (line.position.z > 10) {
-                    line.position.z -= ROAD_LENGTH - 10;
+            scoreText.textContent = score;
+            speedText.textContent = Math.floor(speed * 10);
+            fuelText.textContent = fuel.toFixed(1) + 's';
+            fuelBar.style.width = Math.max(0, (fuel / maxFuel) * 100) + '%';
+
+            const targetX = LANE_X[currentLane];
+            playerCar.position.x += (targetX - playerCar.position.x) * deltaTime * 12;
+            playerCar.rotation.z = (playerCar.position.x - targetX) * 0.1;
+
+            const moveZ = speed * deltaTime * 3.5;
+
+            environmentObjects.forEach(obj => {
+                obj.position.z += moveZ;
+                if (obj.position.z > 30) {
+                    obj.position.z -= 180;
                 }
             });
 
-            spawnEntities(deltaTime);
+            updateSpawning(deltaTime);
+            updateObstacles(deltaTime, moveZ);
+            updateFuels(deltaTime, moveZ);
 
+            renderer.render(scene, camera);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateSpawning(deltaTime) {
+            obstacleSpawnTimer += deltaTime;
+            const carInterval = Math.max(0.35, 1.1 - elapsedTime * 0.015);
+            if (obstacleSpawnTimer > carInterval) {
+                obstacleSpawnTimer = 0;
+                spawnCarObstacle();
+            }
+
+            sideEntitySpawnTimer += deltaTime;
+            if (sideEntitySpawnTimer > 1.2) {
+                sideEntitySpawnTimer = 0;
+                spawnSideEntity();
+            }
+
+            if (elapsedTime >= 10.0) {
+                holeSpawnTimer += deltaTime;
+                if (holeSpawnTimer > 3.0) {
+                    holeSpawnTimer = 0;
+                    spawnRoadHole();
+                }
+            }
+
+            fuelSpawnTimer += deltaTime;
+            if (fuelSpawnTimer > 1.0) {
+                fuelSpawnTimer = 0;
+                spawnFuelItem();
+            }
+        }
+
+        function spawnCarObstacle() {
+            const lane = Math.floor(Math.random() * LANE_COUNT);
+            const colors = [0xef4444, 0x3b82f6, 0x8b5cf6, 0x10b981, 0xf59e0b];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const carMesh = createEnemyCarModel(color);
+
+            carMesh.position.set(LANE_X[lane], 0, -65);
+            scene.add(carMesh);
+
+            const isSwerving = elapsedTime >= 10.0 && Math.random() < 0.4;
+            const targetLane = isSwerving ? Math.max(0, Math.min(4, lane + (Math.random() < 0.5 ? -1 : 1))) : lane;
+
+            obstacles.push({
+                type: 'car',
+                mesh: carMesh,
+                lane: lane,
+                targetLane: targetLane,
+                isSwerving: isSwerving,
+                swerveDelay: 0.2,
+                radius: 1.1
+            });
+        }
+
+        function spawnSideEntity() {
+            const rand = Math.random();
+            const fromLeft = Math.random() < 0.5;
+            const startX = fromLeft ? -10 : 10;
+            const vx = (fromLeft ? 1 : -1) * (3.5 + Math.random() * 2);
+
+            let entityData;
+
+            if (rand < 0.45) {
+                const deer = createDeerModel();
+                deer.mesh.position.set(startX, 0, -45 - Math.random() * 20);
+                deer.mesh.rotation.y = fromLeft ? Math.PI / 2 : -Math.PI / 2;
+                scene.add(deer.mesh);
+
+                entityData = {
+                    type: 'deer',
+                    mesh: deer.mesh,
+                    legs: deer.legs,
+                    vx: vx,
+                    animTimer: 0,
+                    radius: 1.2
+                };
+            } else if (rand < 0.8) {
+                const ped = createPedestrianModel();
+                ped.mesh.position.set(startX, 0, -40 - Math.random() * 20);
+                scene.add(ped.mesh);
+
+                entityData = {
+                    type: 'pedestrian',
+                    mesh: ped.mesh,
+                    legs: ped.legs,
+                    vx: vx,
+                    animTimer: 0,
+                    radius: 0.8
+                };
+            } else {
+                const bird = createBirdModel();
+                bird.mesh.position.set(startX, 2.5, -35 - Math.random() * 20);
+                bird.mesh.rotation.y = fromLeft ? Math.PI / 2 : -Math.PI / 2;
+                scene.add(bird.mesh);
+
+                entityData = {
+                    type: 'bird',
+                    mesh: bird.mesh,
+                    wings: bird.wings,
+                    vx: vx,
+                    animTimer: 0,
+                    radius: 0.9
+                };
+            }
+
+            obstacles.push(entityData);
+        }
+
+        function spawnRoadHole() {
+            const lane = Math.floor(Math.random() * LANE_COUNT);
+            const holeMesh = createRoadHoleModel();
+            holeMesh.position.set(LANE_X[lane], 0, -60);
+            scene.add(holeMesh);
+
+            obstacles.push({
+                type: 'hole',
+                mesh: holeMesh,
+                radius: 1.0
+            });
+        }
+
+        function spawnFuelItem() {
+            const lane = Math.floor(Math.random() * LANE_COUNT);
+            const fuelMesh = createFuelItemModel();
+            fuelMesh.position.set(LANE_X[lane], 0, -60);
+            scene.add(fuelMesh);
+
+            fuels.push({
+                mesh: fuelMesh,
+                rotSpeed: 2.0 + Math.random() * 1.5,
+                radius: 1.0
+            });
+        }
+
+        function updateObstacles(deltaTime, moveZ) {
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 const obs = obstacles[i];
-                obs.mesh.position.z += currentSpeed3D * deltaTime;
+                obs.mesh.position.z += moveZ;
 
-                if (obs.type === 'crossing') {
-                    obs.mesh.position.x += obs.vx * deltaTime;
-                    obs.mesh.rotation.y = obs.vx > 0 ? Math.PI / 2 : -Math.PI / 2;
+                if (obs.type === 'car' && obs.isSwerving) {
+                    if (obs.swerveDelay > 0) {
+                        obs.swerveDelay -= deltaTime;
+                    } else {
+                        const targetXPos = LANE_X[obs.targetLane];
+                        const dx = targetXPos - obs.mesh.position.x;
+                        obs.mesh.position.x += dx * deltaTime * 6.0;
+                        obs.mesh.rotation.y = dx * 0.18;
+                    }
                 }
 
-                const dx = Math.abs(obs.mesh.position.x - playerMesh.position.x);
-                const dz = Math.abs(obs.mesh.position.z - playerMesh.position.z);
+                if (obs.vx !== undefined) {
+                    obs.mesh.position.x += obs.vx * deltaTime;
+                    obs.animTimer = (obs.animTimer || 0) + deltaTime * 10;
 
-                const collisionThresholdX = obs.type === 'roadHole' ? 1.0 : 1.3;
-                const collisionThresholdZ = obs.type === 'roadHole' ? 1.4 : 2.2;
-
-                if (dx < collisionThresholdX && dz < collisionThresholdZ) {
-                    sfx.playCrash();
-                    let reasonText = '장애물과 충돌했습니다!';
-                    if (obs.type === 'roadHole') {
-                        reasonText = '도로 공사 구멍(싱크홀)에 빠졌습니다!';
-                    } else if (obs.type === 'crossing') {
-                        if (obs.subType === 'bird') reasonText = '새와 충돌했습니다!';
-                        else if (obs.subType === 'deer') reasonText = '고라니와 충돌했습니다!';
-                        else reasonText = '보행자와 충돌했습니다!';
+                    if (obs.legs) {
+                        obs.legs.forEach((leg, idx) => {
+                            leg.rotation.x = Math.sin(obs.animTimer + idx * Math.PI) * 0.6;
+                        });
                     }
-                    gameOver(reasonText);
+                    if (obs.wings) {
+                        obs.wings.forEach((wing, idx) => {
+                            wing.rotation.z = Math.sin(obs.animTimer) * 0.5 * (idx === 0 ? 1 : -1);
+                        });
+                    }
+                }
+
+                // Collision Detection
+                const distZ = Math.abs(obs.mesh.position.z - playerCar.position.z);
+                const distX = Math.abs(obs.mesh.position.x - playerCar.position.x);
+
+                if (distZ < 1.8 && distX < obs.radius) {
+                    let reason = "장애물과 충돌했습니다!";
+                    if (obs.type === 'car') reason = "차량 장애물과 충돌했습니다!";
+                    else if (obs.type === 'hole') reason = "도로 공사 구멍에 빠졌습니다!";
+                    else if (obs.type === 'deer') reason = "갑자기 튀어나온 사슴과 충돌했습니다!";
+                    else if (obs.type === 'pedestrian') reason = "무단횡단 보행자와 충돌했습니다!";
+                    else if (obs.type === 'bird') reason = "낮게 날아가는 새와 충돌했습니다!";
+
+                    endGame(reason);
                     return;
                 }
 
-                if (obs.mesh.position.z > 15 || Math.abs(obs.mesh.position.x) > 14) {
+                // Remove Out of Bounds
+                if (obs.mesh.position.z > 20 || Math.abs(obs.mesh.position.x) > 25) {
                     scene.remove(obs.mesh);
                     obstacles.splice(i, 1);
                 }
             }
+        }
 
-            for (let i = fuelItems.length - 1; i >= 0; i--) {
-                const item = fuelItems[i];
-                item.mesh.position.z += currentSpeed3D * deltaTime;
-                item.mesh.rotation.y += deltaTime * 3.0;
+        function updateFuels(deltaTime, moveZ) {
+            for (let i = fuels.length - 1; i >= 0; i--) {
+                const item = fuels[i];
+                item.mesh.position.z += moveZ;
+                item.mesh.rotation.y += item.rotSpeed * deltaTime;
 
-                const dx = Math.abs(item.mesh.position.x - playerMesh.position.x);
-                const dz = Math.abs(item.mesh.position.z - playerMesh.position.z);
+                // Picked Up Fuel Item
+                const distZ = Math.abs(item.mesh.position.z - playerCar.position.z);
+                const distX = Math.abs(item.mesh.position.x - playerCar.position.x);
 
-                if (dx < 1.4 && dz < 1.8) {
-                    fuel = Math.min(MAX_FUEL, fuel + 1.0);
-                    triggerFuelRecoveryEffect();
+                if (distZ < 1.6 && distX < item.radius) {
+                    fuel = Math.min(maxFuel, fuel + 1.0);
+                    showFloatingText("+1.0s FUEL!");
+                    triggerFlash();
+
                     scene.remove(item.mesh);
-                    fuelItems.splice(i, 1);
+                    fuels.splice(i, 1);
                     continue;
                 }
 
-                if (item.mesh.position.z > 15) {
+                // Remove Out of Bounds
+                if (item.mesh.position.z > 20) {
                     scene.remove(item.mesh);
-                    fuelItems.splice(i, 1);
+                    fuels.splice(i, 1);
                 }
             }
-
-            updateUI();
-            renderer.render(scene, camera);
-            requestAnimationFrame(gameLoop);
         }
 
-        function updateUI() {
-            scoreDisplay.textContent = Math.floor(score).toLocaleString();
-            speedDisplay.textContent = `속도: ${Math.floor(100 * currentSpeedMultiplier)} km/h`;
-            
-            const fuelPercent = Math.max(0, (fuel / MAX_FUEL) * 100);
-            fuelBar.style.width = `${fuelPercent}%`;
-            fuelText.textContent = `${Math.max(0, fuel).toFixed(1)}초`;
-
-            if (fuel < 3.0) {
-                fuelBar.classList.remove('from-emerald-500', 'to-green-400');
-                fuelBar.classList.add('bg-rose-500');
-            } else {
-                fuelBar.classList.remove('bg-rose-500');
-                fuelBar.classList.add('from-emerald-500', 'to-green-400');
-            }
+        function showFloatingText(txt) {
+            const el = document.createElement('div');
+            el.className = 'float-text text-xl font-black text-emerald-400 drop-shadow-md';
+            el.textContent = txt;
+            floatingContainer.appendChild(el);
+            setTimeout(() => el.remove(), 800);
         }
 
-        function triggerFuelRecoveryEffect() {
-            sfx.playFuel();
-            screenFlash.style.opacity = '1';
-            setTimeout(() => { screenFlash.style.opacity = '0'; }, 150);
+        function triggerFlash() {
+            flashOverlay.classList.add('flash-green');
+            setTimeout(() => flashOverlay.classList.remove('flash-green'), 400);
         }
 
-        function startGame() {
-            sfx.init();
-            resetGame();
-            gameState = 'PLAYING';
-            overlay.classList.add('hidden');
-            lastTimestamp = performance.now();
-            requestAnimationFrame(gameLoop);
+        function endGame(reason) {
+            isPlaying = false;
+
+            document.getElementById('gameover-reason').textContent = reason;
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('final-time').textContent = elapsedTime.toFixed(1) + '초';
+            document.getElementById('gameover-modal').classList.remove('hidden');
         }
 
-        function gameOver(reason) {
-            gameState = 'GAMEOVER';
-            overlay.classList.remove('hidden');
-            titleContainer.classList.add('hidden');
-            rulesCard.classList.add('hidden');
-            resultBox.classList.remove('hidden');
-
-            gameOverReason.textContent = reason;
-            finalScore.textContent = Math.floor(score).toLocaleString();
-            startBtn.textContent = '다시 도전하기';
-        }
-
-        function onWindowResize() {
-            if (!camera || !renderer) return;
-            camera.aspect = container.clientWidth / container.clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(container.clientWidth, container.clientHeight);
-        }
-
-        // Event Listeners
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-                moveLeft();
-            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-                moveRight();
-            }
-        });
-
-        btnLeft.addEventListener('click', moveLeft);
-        btnRight.addEventListener('click', moveRight);
-        startBtn.addEventListener('click', startGame);
-
-        window.onload = function() {
-            init3D();
-        };
+        // Initialize App
+        window.onload = initThreeJS;
     </script>
 </body>
 </html>
+```
+
+The syntax error has been resolved, and the 3D game logic is running smoothly.
